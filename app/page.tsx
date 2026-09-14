@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AnalysisResult } from "@/lib/analyzer";
 import type { Tone } from "@/lib/ai-provider";
+import { getHistory, saveHistoryEntry, type HistoryEntry } from "@/lib/history";
 
 type ResultWithSource = AnalysisResult & { source?: "ai" | "fallback" };
 
@@ -30,6 +31,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [editableResponse, setEditableResponse] = useState("");
   const [copied, setCopied] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  useEffect(() => {
+    setHistory(getHistory());
+  }, []);
 
   async function handleAnalyze() {
     setError(null);
@@ -50,6 +56,20 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || "Something went wrong.");
       setResult(data);
       setEditableResponse(data.suggestedResponse);
+      setHistory(
+        saveHistoryEntry({
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          reviewText: review,
+          tone,
+          sentiment: data.sentiment,
+          priority: data.priority,
+          positiveThemes: data.positiveThemes,
+          negativeThemes: data.negativeThemes,
+          suggestedResponse: data.suggestedResponse,
+          source: data.source,
+        })
+      );
     } catch (e: any) {
       setError(e.message ?? "Something went wrong.");
     } finally {
@@ -300,6 +320,95 @@ export default function Home() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div className="mt-16 border-t border-black/10 pt-8">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-denim">
+            Statistics
+          </h2>
+          <p className="mt-1 text-xs text-ink/40">
+            Based on your last {history.length} analyzed review
+            {history.length === 1 ? "" : "s"}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-denim/30 bg-denim/[0.1] p-4">
+              <p className="text-2xl font-semibold text-denim">
+                {history.length}
+              </p>
+              <p className="mt-1 text-xs text-ink/50">Total reviews</p>
+            </div>
+            <div className="rounded-xl border border-sage/30 bg-sage/[0.1] p-4">
+              <p className="text-2xl font-semibold text-sage">
+                {history.filter((h) => h.sentiment === "Positive").length}
+              </p>
+              <p className="mt-1 text-xs text-ink/50">Positive</p>
+            </div>
+            <div className="rounded-xl border border-amber-border bg-amber-bg p-4">
+              <p className="text-2xl font-semibold text-amber-text">
+                {history.filter((h) => h.sentiment === "Mixed").length}
+              </p>
+              <p className="mt-1 text-xs text-ink/50">Mixed</p>
+            </div>
+            <div className="rounded-xl border border-clay/30 bg-clay/[0.1] p-4">
+              <p className="text-2xl font-semibold text-clay">
+                {history.filter((h) => h.sentiment === "Negative").length}
+              </p>
+              <p className="mt-1 text-xs text-ink/50">Negative</p>
+            </div>
+            <div className="rounded-xl border border-red-300 bg-red-100 p-4">
+              <p className="text-2xl font-semibold text-red-700">
+                {history.filter((h) => h.priority === "High").length}
+              </p>
+              <p className="mt-1 text-xs text-ink/50">High priority</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div className="mt-16 border-t border-black/10 pt-8">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-denim">
+            Recent reviews
+          </h2>
+          <ul className="mt-4 space-y-4">
+            {history.map((entry) => (
+              <li
+                key={entry.id}
+                className="rounded-xl border border-black/10 bg-white p-5 shadow-sm transition hover:border-denim/25"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${SENTIMENT_STYLES[entry.sentiment]}`}
+                  >
+                    {entry.sentiment}
+                  </span>
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${PRIORITY_STYLES[entry.priority]}`}
+                  >
+                    {entry.priority}
+                  </span>
+                  <span className="ml-auto text-xs text-ink/40">
+                    {new Date(entry.timestamp).toLocaleString()}
+                  </span>
+                </div>
+
+                <p className="mt-3 line-clamp-2 border-l-2 border-denim/20 pl-3 text-sm text-ink/80">
+                  {entry.reviewText}
+                </p>
+
+                <div className="mt-3 border-t border-black/5 pt-3">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink/40">
+                    Response
+                  </p>
+                  <p className="mt-1 line-clamp-1 text-xs text-ink/60">
+                    {entry.suggestedResponse}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </main>
